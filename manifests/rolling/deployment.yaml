@@ -1,0 +1,120 @@
+# =============================================================================
+# File    : manifests/rolling/deployment.yaml
+# Purpose : The single notice-board Deployment used in Tasks 3, 5 and 6.
+#           This file is EDITED for each release and re-applied; the repository
+#           is the only source of change (the one exception is the Task 6
+#           rollback). Each commit of this file is one step of the practical.
+# Apply   : kubectl apply -f manifests/rolling/deployment.yaml
+# Watch   : kubectl rollout status deployment/notice-board
+# Verify  : kubectl diff -f manifests/rolling/deployment.yaml
+# Fields that change between releases are marked  <-- RELEASE
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notice-board
+  namespace: nb-02230137
+  labels:
+    app: notice-board
+    app.kubernetes.io/part-of: campus-noticeboard
+    cte412/practical: "06"
+    cte412/student: "02230137"
+  annotations:
+    # Recorded in 'kubectl rollout history'. Every release needs a NEW text,
+    # set here in the manifest rather than with 'kubectl annotate'.
+    kubernetes.io/change-cause: "Task 3: initial deployment of 1.0.0"   # <-- RELEASE
+spec:
+  # Three replicas: enough for the EndpointSlice to list three addresses (E3.2)
+  # and for a rolling update to be visible in the monitor.
+  replicas: 3
+
+  # IMMUTABLE after creation. Must match the Pod labels below. 'version' is
+  # deliberately NOT part of it: if it were, every release would change the
+  # selector, which the API server forbids.
+  selector:
+    matchLabels:
+      app: notice-board
+
+  strategy:
+    type: RollingUpdate        # <-- RELEASE (Task 5 sets Recreate, then back)
+
+  template:
+    metadata:
+      labels:
+        app: notice-board                  # what the Services select on
+        version: "1.0.0"                   # <-- RELEASE: must equal the image version
+        app.kubernetes.io/part-of: campus-noticeboard
+        cte412/practical: "06"
+        cte412/student: "02230137"
+    spec:
+      # Shorter than the 30 s default: the app exits at once on SIGTERM and the
+      # preStop sleep below is only 5 s.
+      terminationGracePeriodSeconds: 15
+
+      # Pod-level: refuse to start if the image would run as root.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001       # the uid created in app/Dockerfile
+
+      containers:
+        - name: notice-board
+          # Student number in the tag. Built locally and loaded into the nodes.
+          image: notice-board:02230137-1.0.0     # <-- RELEASE
+          # Never: the kubelet may only use an image already on the node, so it
+          # can NEVER attempt a registry pull (Task 3 step 4). If the image is
+          # missing the Pod fails with ErrImageNeverPull instead of pulling.
+          imagePullPolicy: Never
+          securityContext:
+            allowPrivilegeEscalation: false   # no setuid tricks inside the container
+            capabilities:
+              drop: ["ALL"]                   # a web server needs no capabilities
+          ports:
+            # Named, so Services can use targetPort: http instead of 8080.
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+
+          # READINESS decides whether the Pod receives Service traffic. It uses
+          # /healthz, which is 503 for the first 5 s and permanently for the
+          # broken release, so unready Pods never enter the EndpointSlice.
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 2   # skip the first moments of start-up
+            periodSeconds: 2         # check often so a ready Pod joins quickly
+            timeoutSeconds: 1
+            failureThreshold: 2      # two misses (4 s) before removal from service
+
+          # LIVENESS decides whether the container is restarted. It must NOT use
+          # /healthz: that endpoint is 503 during warm-up and for the broken
+          # release, so the kubelet would kill the container in a loop. Liveness
+          # asks only "is the process alive?", which /version answers.
+          livenessProbe:
+            httpGet:
+              path: /version
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+
+          lifecycle:
+            preStop:
+              # Keep serving for 5 s after the Pod is marked for deletion. The
+              # EndpointSlice update reaches kube-proxy a moment later; without
+              # this delay a terminating Pod can refuse connections that are
+              # still being routed to it, producing failed requests.
+              exec:
+                command: ["sh", "-c", "sleep 5"]
+
+          # Sized against nb-quota with room for Tasks 5 to 8.
+          # Peak in this practical: 7 Pods (Task 8 rolling restart of green)
+          # x 50m = 350m requests.cpu, plus the monitor's 10m = 360m of 1 core.
+          # Memory limits: 7 x 128Mi = 896Mi plus 32Mi, well inside 2Gi.
+          resources:
+            requests:
+              cpu: 50m        # an idle Python HTTP server uses a few millicores
+              memory: 64Mi    # measured footprint is about 20-30Mi; margin kept
+            limits:
+              cpu: 200m       # four times the request absorbs warm-up bursts
+              memory: 128Mi   # exceeding this OOM-kills the container

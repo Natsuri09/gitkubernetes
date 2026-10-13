@@ -1,0 +1,42 @@
+# =============================================================================
+# File    : manifests/base/02-limitrange.yaml
+# Purpose : Per-container defaults and bounds, chosen to fit nb-quota.
+# Apply   : kubectl apply -f manifests/base/02-limitrange.yaml
+# Check   : kubectl describe limitrange nb-limits
+# =============================================================================
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: nb-limits
+  namespace: nb-02230137
+  labels:
+    app.kubernetes.io/part-of: campus-noticeboard
+    cte412/practical: "06"
+    cte412/student: "02230137"
+spec:
+  limits:
+    - type: Container          # evaluated per container, not per Pod
+      # Applied as the LIMIT when a container declares none.
+      # Check against the quota: 15 Pods (the pod cap) x 100m = 1.5 cores,
+      # below limits.cpu 2; 15 x 64Mi = 960Mi, below limits.memory 2Gi. Even if
+      # every Pod relied on the default, the limit quota could not be exhausted.
+      default:
+        cpu: 100m
+        memory: 64Mi
+      # Applied as the REQUEST when a container declares none.
+      # Check: 15 x 25m = 375m, below requests.cpu 1; 15 x 32Mi = 480Mi, below
+      # requests.memory 1Gi. Kept below 'default' so Pods are not over-reserved.
+      defaultRequest:
+        cpu: 25m
+        memory: 32Mi
+      # Smallest value a container may declare. Below this a process starves in
+      # ways that look like application bugs.
+      min:
+        cpu: 5m
+        memory: 8Mi
+      # Largest value a container may declare. 500m is a quarter of
+      # limits.cpu 2, and 256Mi an eighth of limits.memory 2Gi, so a single
+      # container can never claim a large share of the namespace.
+      max:
+        cpu: 500m
+        memory: 256Mi

@@ -1,0 +1,35 @@
+# =============================================================================
+# File    : cluster/kind-cluster.yaml
+# Purpose : Three-node kind cluster for the CTE412 Practical 6 assessed lab.
+# Apply   : kind create cluster --config cluster/kind-cluster.yaml
+# Delete  : kind delete cluster --name cte412-02230137
+# =============================================================================
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+
+# Student number in the cluster name, as the rules require. kind derives the
+# kubectl context (kind-cte412-02230137) and the Docker container names
+# (cte412-02230137-control-plane, -worker, -worker2) from it.
+name: cte412-02230137
+
+networking:
+  # Publish the API server on loopback only, so the cluster is not exposed
+  # on a shared lab network.
+  apiServerAddress: "127.0.0.1"
+
+nodes:
+  # One control-plane node, carrying the host-port mapping.
+  - role: control-plane
+    extraPortMappings:
+      # Host 127.0.0.1:30090 -> this node's port 30090. It must equal the
+      # nodePort of the notice-board-ext Service. A NodePort is open on every
+      # node, so mapping it on one node is enough.
+      - containerPort: 30090
+        hostPort: 30090
+        listenAddress: "127.0.0.1"   # loopback only, as the task requires
+        protocol: TCP
+
+  # Two workers, where the notice-board Pods are scheduled (the control-plane
+  # node keeps its default NoSchedule taint).
+  - role: worker
+  - role: worker

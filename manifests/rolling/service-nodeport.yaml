@@ -1,0 +1,28 @@
+# =============================================================================
+# File    : manifests/rolling/service-nodeport.yaml
+# Purpose : Reach the API from the host: curl http://127.0.0.1:30090/version
+# Apply   : kubectl apply -f manifests/rolling/service-nodeport.yaml
+# Depends : cluster/kind-cluster.yaml maps host port 30090 to node port 30090.
+#           Change one and the other must change.
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: notice-board-ext
+  namespace: nb-02230137
+  labels:
+    app: notice-board
+    app.kubernetes.io/part-of: campus-noticeboard
+    cte412/practical: "06"
+    cte412/student: "02230137"
+spec:
+  type: NodePort               # opens nodePort on every node
+  selector:
+    app: notice-board
+  ports:
+    - name: http
+      port: 80                 # port on the Service, for in-cluster clients
+      targetPort: http         # named container port
+      nodePort: 30090          # fixed (range 30000-32767) because the kind
+                               # cluster file publishes exactly this port
+      protocol: TCP

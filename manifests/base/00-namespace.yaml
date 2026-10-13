@@ -1,0 +1,17 @@
+# =============================================================================
+# File    : manifests/base/00-namespace.yaml
+# Purpose : Namespace that holds every object of this practical.
+# Apply   : kubectl apply -f manifests/base/00-namespace.yaml
+# =============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  # Student number in the namespace name, as the rules require.
+  name: nb-02230137
+  labels:
+    app.kubernetes.io/part-of: campus-noticeboard   # required by Task 1
+    cte412/practical: "06"       # quoted: unquoted 06 is a number, not a string
+    cte412/student: "02230137"   # quoted: a leading zero would be lost otherwise
+  annotations:
+    # Annotations carry information for people; they are never selectors.
+    cte412/student-name: "REPLACE WITH YOUR FULL NAME"

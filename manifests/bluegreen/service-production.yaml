@@ -1,0 +1,52 @@
+# =============================================================================
+# File    : manifests/bluegreen/service-production.yaml
+# Purpose : The two production Services. Both select ONE colour. Switching
+#           production is editing 'slot' below and applying this file.
+# Apply   : kubectl apply -f manifests/bluegreen/service-production.yaml
+# Switch  : flip the value of 'slot' on the two selector lines that end with
+#           an arrow comment. Both Services must be switched together, so
+#           they live in one file.
+# Replaces the Services of manifests/rolling/ (same names).
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: notice-board            # same name as Task 3: the monitor keeps using it
+  namespace: nb-02230137
+  labels:
+    app: notice-board
+    app.kubernetes.io/part-of: campus-noticeboard
+    cte412/practical: "06"
+    cte412/student: "02230137"
+spec:
+  type: ClusterIP
+  selector:
+    app: notice-board
+    slot: blue                  # <-- switch point (blue = 1.0.0, green = 1.1.0)
+  ports:
+    - name: http
+      port: 80
+      targetPort: http          # named container port
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notice-board-ext
+  namespace: nb-02230137
+  labels:
+    app: notice-board
+    app.kubernetes.io/part-of: campus-noticeboard
+    cte412/practical: "06"
+    cte412/student: "02230137"
+spec:
+  type: NodePort
+  selector:
+    app: notice-board
+    slot: blue                  # <-- switch point (must equal the Service above)
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      nodePort: 30090           # fixed: the kind cluster publishes this port
+      protocol: TCP

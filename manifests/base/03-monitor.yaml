@@ -1,0 +1,54 @@
+# =============================================================================
+# File    : manifests/base/03-monitor.yaml
+# Purpose : Availability monitor. Requests http://notice-board/version every
+#           0.5 s, forever, one log line per request:
+#           <ISO-8601 UTC timestamp> <OK|FAIL> <response body or error>
+# Apply   : kubectl apply -f manifests/base/03-monitor.yaml
+# Read    : kubectl logs monitor
+# NOTE    : never delete or restart this Pod between measurements.
+# =============================================================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: monitor
+  namespace: nb-02230137
+  labels:
+    app: monitor               # NOT app=notice-board, or the Services would select it
+    tier: tooling
+    app.kubernetes.io/part-of: campus-noticeboard
+    cte412/practical: "06"
+    cte412/student: "02230137"
+spec:
+  # Stated explicitly: if the container ever exits, restart it. (Capital A.)
+  restartPolicy: Always
+  terminationGracePeriodSeconds: 2   # nothing to shut down gracefully
+  containers:
+    - name: monitor
+      image: busybox:1.37            # busybox, as the rules allow: sh, wget, date
+      imagePullPolicy: IfNotPresent  # pinned tag, so a cached copy is correct
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          URL="http://notice-board/version"
+          while true; do
+            ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+            # -T 2: give up after 2 s, so an outage is logged as FAIL instead
+            # of hanging the loop.
+            if out=$(wget -q -O - -T 2 "$URL" 2>&1); then
+              status=OK
+            else
+              status=FAIL
+            fi
+            # Keep the record on ONE line: newlines in an error become spaces.
+            out=$(printf '%s' "$out" | tr '\n\r' '  ')
+            echo "$ts $status ${out:-no-response}"
+            sleep 0.5
+          done
+      resources:
+        # Small, because the loop only forks wget twice a second.
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          cpu: 50m
+          memory: 32Mi

@@ -1,0 +1,86 @@
+# =============================================================================
+# File    : manifests/bluegreen/deployment-blue.yaml
+# Purpose : The blue colour: three replicas of 1.0.0, labelled slot=blue.
+# Apply   : kubectl apply -f manifests/bluegreen/deployment-blue.yaml
+# Note    : probes and resources are identical to Task 3
+#           (manifests/rolling/deployment.yaml carries the full explanations).
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notice-board-blue
+  namespace: nb-02230137
+  labels:
+    app: notice-board
+    slot: blue
+    app.kubernetes.io/part-of: campus-noticeboard
+    cte412/practical: "06"
+    cte412/student: "02230137"
+  annotations:
+    kubernetes.io/change-cause: "Task 7: blue colour, version 1.0.0"
+spec:
+  replicas: 3                  # same capacity as Task 3, so the colours are comparable
+  # The selector includes 'slot'. Without it the two Deployments would both
+  # match every Pod labelled app=notice-board and fight over ownership.
+  selector:
+    matchLabels:
+      app: notice-board
+      slot: blue
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0        # never fewer than 3 ready Pods during an update
+      maxSurge: 1              # one extra Pod at a time
+  minReadySeconds: 5           # a Pod must stay ready 5 s before it counts as available
+  template:
+    metadata:
+      labels:
+        app: notice-board
+        slot: blue               # what the Services select on
+        version: "1.0.0"           # the image version, for reading the Pod list
+        app.kubernetes.io/part-of: campus-noticeboard
+        cte412/practical: "06"
+        cte412/student: "02230137"
+    spec:
+      terminationGracePeriodSeconds: 15   # app exits on SIGTERM; preStop is 5 s
+      securityContext:
+        runAsNonRoot: true                # refuse to run as root
+        runAsUser: 10001                  # the uid created in app/Dockerfile
+      containers:
+        - name: notice-board
+          image: notice-board:02230137-1.0.0
+          imagePullPolicy: Never          # never attempt a registry pull
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - name: http                  # named so Services can use targetPort: http
+              containerPort: 8080
+              protocol: TCP
+          readinessProbe:                     # /healthz: Pod joins the Service only when ready
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 2
+            timeoutSeconds: 1
+            failureThreshold: 2
+          livenessProbe:                      # /version, NOT /healthz: liveness must not depend on warm-up
+            httpGet:
+              path: /version
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sh", "-c", "sleep 5"]   # keep serving while kube-proxy catches up
+          resources:                          # 6 Pods x 50m = 300m of requests.cpu 1 (Task 7)
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi

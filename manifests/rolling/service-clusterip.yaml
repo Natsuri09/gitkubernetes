@@ -1,0 +1,26 @@
+# =============================================================================
+# File    : manifests/rolling/service-clusterip.yaml
+# Purpose : In-cluster entry point. The monitor reaches http://notice-board/.
+# Apply   : kubectl apply -f manifests/rolling/service-clusterip.yaml
+# Check   : kubectl get endpointslice -l kubernetes.io/service-name=notice-board
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: notice-board
+  namespace: nb-02230137
+  labels:
+    app: notice-board
+    app.kubernetes.io/part-of: campus-noticeboard
+    cte412/practical: "06"
+    cte412/student: "02230137"
+spec:
+  type: ClusterIP              # the default, stated so the choice is visible
+  # A Pod receives traffic only if it matches this AND is passing readiness.
+  selector:
+    app: notice-board
+  ports:
+    - name: http
+      port: 80                 # port clients use (the monitor uses plain http://)
+      targetPort: http         # the NAMED container port, not the number 8080
+      protocol: TCP

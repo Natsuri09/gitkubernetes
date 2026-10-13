@@ -1,0 +1,27 @@
+# =============================================================================
+# File    : manifests/bluegreen/service-preview.yaml
+# Purpose : Always points at green, so a new version can be tested through the
+#           same Service machinery before production is switched to it.
+# Apply   : kubectl apply -f manifests/bluegreen/service-preview.yaml
+# Test    : kubectl exec monitor -- wget -qO- http://notice-board-preview/version
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: notice-board-preview
+  namespace: nb-02230137
+  labels:
+    app: notice-board
+    app.kubernetes.io/part-of: campus-noticeboard
+    cte412/practical: "06"
+    cte412/student: "02230137"
+spec:
+  type: ClusterIP               # in-cluster only: preview is not public
+  selector:
+    app: notice-board
+    slot: green                 # fixed on purpose: never edited in this practical
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
